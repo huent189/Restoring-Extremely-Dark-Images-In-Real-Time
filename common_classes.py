@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 import rawpy
 import glob
 import imageio
-
+import cv2
 
 def define_weights(num):
     weights = np.float32((np.logspace(0,num,127, endpoint=True, base=10.0)))
@@ -38,54 +38,78 @@ def get_na(bins,weights,img_loww,amp=1.0):
 
 def part_init(train_files):
 
-    bins = np.float32((np.logspace(0,8,128, endpoint=True, base=2.0)-1))/255.0
-    weights5 = define_weights(5)
+    # bins = np.float32((np.logspace(0,8,128, endpoint=True, base=2.0)-1))/255.0
+    # weights5 = define_weights(5)
     train_list = []
     
     for i in range(len(train_files)):
         
-        raw = rawpy.imread(train_files[i])
-        img = raw.raw_image_visible.astype(np.float32).copy()
-        raw.close()
-        
-        h,w = img.shape
+        # raw = rawpy.imread(train_files[i])
+        # img = raw.raw_image_visible.astype(np.float32).copy()
+        # raw.close()
+        img = cv2.imread(train_files[i])[:,:,::-1] / 255.0
+        img = img.astype(np.float32).copy()
+
+        h,w = img.shape[:1]
         if h%32!=0:
-            print('Image dimensions should be multiple of 32. Correcting the 1st dimension.')
+            # print('Image dimensions should be multiple of 32. Correcting the 1st dimension.')
             h = (h//32)*32
             img = img[:h,:]
         
         if w%32!=0:
-            print('Image dimensions should be multiple of 32. Correcting the 2nd dimension.')
+            # print('Image dimensions should be multiple of 32. Correcting the 2nd dimension.')
             w = (w//32)*32
             img = img[:,:w]        
         
-        img_loww = (np.maximum(img - 512,0)/ (16383 - 512))       
+        # img_loww = (np.maximum(img - 512,0)/ (16383 - 512))       
         
-        na5 = get_na(bins,weights5,img_loww)   
+        # na5 = get_na(bins,weights5,img_loww)   
         
-        img_loww = img_loww*na5
+        # img_loww = img_loww*na5
             
-        train_list.append(img_loww)
+        train_list.append(img)
 
-        print('Image No.: {}, Amplification_m=1: {}'.format(i+1,na5))
+        # print('Image No.: {}, Amplification_m=1: {}'.format(i+1,na5))
     return train_list
     
-    
+def read_one_im(p):
+  img = cv2.imread(p)
+  assert img is not None, p
+  img = img[:,:,::-1] / 255.0
+  img = img.astype(np.float32).copy()
+
+  h,w = img.shape[:-1]
+  if h%32!=0:
+      # print('Image dimensions should be multiple of 32. Correcting the 1st dimension.')
+      h = (h//32)*32
+      img = img[:h,:]
+  
+  if w%32!=0:
+      # print('Image dimensions should be multiple of 32. Correcting the 2nd dimension.')
+      w = (w//32)*32
+      img = img[:,:w] 
+  return img
 ################ DATASET CLASS
 class load_data(Dataset):
     """Loads the Data."""
     
-    def __init__(self, train_files):    
+    def __init__(self, train_files, gts):    
         print('\n...... Loading all files to CPU RAM\n')
-        self.train_list = part_init(train_files)        
+        self.train_list = train_files
+        self.gts = gts
+        # self.train_list = part_init(train_files)        
         print('\nFiles loaded to CPU RAM......\n')
         
     def __len__(self):
         return len(self.train_list)
 
     def __getitem__(self, idx):    
-        img_low = self.train_list[idx]
-        return torch.from_numpy(img_low).float().unsqueeze(0) 
+        img_low = read_one_im(self.train_list[idx])
+        img_low = torch.from_numpy(img_low).float().permute(2,0,1)
+        gt = read_one_im(self.gts[idx])
+        gt = torch.from_numpy(gt).float().permute(2,0,1)
+        # print('item', img_low.shape, gt.shape)
+        return img_low, gt
 
 def run_test(model, dataloader_test, save_images):    
     with torch.no_grad():

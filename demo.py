@@ -17,14 +17,15 @@ save_images = 'demo_restored_images'
 shutil.rmtree(save_images, ignore_errors = True)
 os.makedirs(save_images)
 
-test_files = glob.glob('demo_imgs/*.ARW') 
-dataloader_test = DataLoader(load_data(test_files), batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
+test_files = glob.glob('/home/ubuntu/dataset/sice_paired_small/[0-9]*/*') 
+gts = ['/home/ubuntu/dataset/sice_paired_small/Label/147.PNG' for _ in test_files]
+dataloader_test = DataLoader(load_data(test_files, gts, True), batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
 
 model = Net()
 print('\n Network parameters : {}\n'.format(sum(p.numel() for p in model.parameters() if p.requires_grad)))
 model = model.to(device)
 print('Device on GPU: {}'.format(next(model.parameters()).is_cuda))
-checkpoint = torch.load('demo_imgs/weights', map_location=device)
+checkpoint = torch.load('weights/weights_36500', map_location=device)
 model.load_state_dict(checkpoint['model'])
 
 run_test(model, dataloader_test, save_images)

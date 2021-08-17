@@ -1,18 +1,18 @@
 opt={'base_lr':1e-4}
 opt['reduce_lr_by'] = 0.1
-opt['atWhichReduce'] = [300000]
-opt['batch_size'] = 2
+opt['atWhichReduce'] = [50000]
+opt['batch_size'] = 4
 opt['atWhichSave'] = [2,100002,150002,200002,250002,300002,350002,400002,450002,500002, 600000,700000,800000,900000,1000000]
-opt['iterations'] = 1000005
+opt['iterations'] = 100000
 dry_run_iterations = 100
 dry_run = False
 metric_average_file = 'metric_average.txt'
 test_amplification_file = 'test_amplification.txt'
 train_amplification_file = 'train_amplification.txt'
 # These are folders
-save_weights = '/content/drive/Shareddrives/huent/wacv_final/others/cvpr_21/weights'
-save_images = '/content/drive/Shareddrives/huent/wacv_final/others/cvpr_21/images' # make this change below also
-save_csv_files = '/content/drive/Shareddrives/huent/wacv_final/others/cvpr_21/csv_files'
+save_weights = 'weights'
+save_images = 'images' # make this change below also
+save_csv_files = 'csv_files'
 
 import numpy as np
 import os
@@ -43,7 +43,7 @@ parser.add_argument('--n_colors', type=int, default=3,
 parser.add_argument('--o_colors', type=int, default=3,
                     help='number of output color channels to use')
 args = parser.parse_args()
-
+print('Starting Application')
 # os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
 # os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
@@ -59,7 +59,7 @@ os.makedirs(save_weights)
 os.makedirs(save_images)
 os.makedirs(save_csv_files)
 
-train_files = glob.glob('/content/dataset/*')
+train_files = glob.glob('../../data/zerodce_p1/input/*')
 train_files = sorted(train_files)
 if dry_run:
     train_files = train_files[:2]
@@ -67,9 +67,9 @@ if dry_run:
     
 gt_files = []
 for x in train_files:
-    gt_files.append(x.replace('/content/dataset', '/content/GT'))
+    gt_files.append(x.replace('input/', 'GT/'))
     
-dataloader_train = DataLoader(load_data(train_files,gt_files), batch_size=1, shuffle=True, num_workers=0, pin_memory=True)
+dataloader_train = DataLoader(load_data(train_files,gt_files), batch_size=8, shuffle=True, num_workers=8, pin_memory=True)
 
 # test_files = glob.glob('/SID_cvpr_18_dataset/Sony/short/1*_00_0.1s.ARW') 
 # if dry_run:
@@ -104,7 +104,9 @@ iter_LR = ['Iter_LR']
             
 
 while iter_num<opt['iterations']:
-    for _, img in enumerate(dataloader_train):
+    for i, img in enumerate(dataloader_train):
+        if i % 100:
+            print(i)
         low = img[0].to(device)
         gt = img[1].to(device)
         model.train()
@@ -136,12 +138,12 @@ while iter_num<opt['iterations']:
                     group['lr']=1e-5
                 print('Changing LR from {} to {}'.format(old_lr,group['lr']))
                 
-        if iter_num in opt['atWhichSave']:
+        if (iter_num % 500) == 0:
             # print('testing......')
-            if iter_num == opt['atWhichSave'][0]:
-                mode = 'w'
-            else:
-                mode = 'a'
+            # if (iter_num % 500) == 0:
+            #     mode = 'w'
+            # else:
+            #     mode = 'a'
             # run_test(model, dataloader_test, iter_num, save_images, save_csv_files, metric_average_file, mode, training=True)
             torch.save({'model': model.state_dict()},os.path.join(save_weights,'weights_{}'.format(iter_num)))
 

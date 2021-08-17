@@ -3,11 +3,9 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset
-import rawpy
 import glob
 import imageio
 import cv2
-
 def define_weights(num):
     weights = np.float32((np.logspace(0,num,127, endpoint=True, base=10.0)))
     weights = weights/np.max(weights)
@@ -75,6 +73,7 @@ def part_init(train_files):
 def read_one_im(p):
   img = cv2.imread(p)
   assert img is not None, p
+#   img = cv2.resize(img, (960, 960), interpolation = cv2.INTER_AREA)
   img = img[:,:,::-1] / 255.0
   img = img.astype(np.float32).copy()
 
@@ -93,10 +92,11 @@ def read_one_im(p):
 class load_data(Dataset):
     """Loads the Data."""
     
-    def __init__(self, train_files, gts):    
+    def __init__(self, train_files, gts, return_path=False):    
         print('\n...... Loading all files to CPU RAM\n')
         self.train_list = train_files
         self.gts = gts
+        self.return_path = return_path
         # self.train_list = part_init(train_files)        
         print('\nFiles loaded to CPU RAM......\n')
         
@@ -109,17 +109,24 @@ class load_data(Dataset):
         gt = read_one_im(self.gts[idx])
         gt = torch.from_numpy(gt).float().permute(2,0,1)
         # print('item', img_low.shape, gt.shape)
+        if self.return_path:
+            return img_low, gt, self.train_list[idx]
         return img_low, gt
 
 def run_test(model, dataloader_test, save_images):    
     with torch.no_grad():
         model.eval()
         for image_num, low in enumerate(dataloader_test):
-            low = low.to(next(model.parameters()).device)            
-            for amp in [1.0,5.0,8.0]:
-                pred = model(amp*low)
-                pred = (np.clip(pred[0].detach().cpu().numpy().transpose(1,2,0),0,1)*255).astype(np.uint8)
-                imageio.imwrite(os.path.join(save_images,'img_num_{}_m_{}.jpg'.format(image_num,amp)), pred)
+            p = low[-1][0]
+            low = low[0].to(next(model.parameters()).device)            
+            # for amp in [1.0,5.0,8.0]:
+            pred = model(low)
+            pred = (np.clip(pred[0].detach().cpu().numpy().transpose(1,2,0),0,1)*255).astype(np.uint8)
+            p = p.replace('/home/ubuntu/dataset/sice_paired_small/', 'demo_restored_images/')
+            if not os.path.exists(os.path.split(p)[0]):
+                os.makedirs(os.path.split(p)[0])
+            imageio.imwrite(p, pred)
+            # break
     return
     
     
